@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import ManageProjectsModal from '@/components/projects/ManageProjectsModal.vue';
+import { Button } from '@/components/ui/button';
 import {
     Card,
     CardContent,
@@ -11,6 +13,10 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Deferred, Head } from '@inertiajs/vue3';
+import { Settings } from 'lucide-vue-next';
+import { ref } from 'vue';
+
+const showManageProjectsModal = ref(false);
 
 interface HealthCheckFailure {
     id: number;
@@ -66,6 +72,20 @@ function getStatusCodeColor(code: number | null): string {
         <div
             class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
         >
+            <!-- Header with Manage Button -->
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-semibold">Dashboard</h1>
+                    <p class="text-sm text-muted-foreground">
+                        Monitor your project health checks
+                    </p>
+                </div>
+                <Button @click="showManageProjectsModal = true">
+                    <Settings class="mr-2 size-4" />
+                    Manage Projects
+                </Button>
+            </div>
+
             <!-- Stats Cards -->
             <div class="grid auto-rows-min gap-4 md:grid-cols-3">
                 <!-- Total Projects Card -->
@@ -278,5 +298,7 @@ function getStatusCodeColor(code: number | null): string {
                 </CardContent>
             </Card>
         </div>
+
+        <ManageProjectsModal v-model:is-open="showManageProjectsModal" />
     </AppLayout>
 </template>

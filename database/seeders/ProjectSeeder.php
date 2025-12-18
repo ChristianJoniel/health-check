@@ -18,7 +18,7 @@ class ProjectSeeder extends Seeder
             'is_active' => true,
         ]);
 
-        $project->notificationEmails()->create([
+        $project->notificationEmails()->firstOrCreate([
             'email' => 'test@example.com',
         ]);
     }

@@ -1,8 +1,4 @@
 <script setup lang="ts">
-import AppLayout from '@/layouts/AppLayout.vue';
-import { dashboard } from '@/routes';
-import { type BreadcrumbItem } from '@/types';
-import { Deferred, Head } from '@inertiajs/vue3';
 import {
     Card,
     CardContent,
@@ -11,6 +7,10 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { dashboard } from '@/routes';
+import { type BreadcrumbItem } from '@/types';
+import { Deferred, Head } from '@inertiajs/vue3';
 
 interface HealthCheckFailure {
     id: number;
@@ -202,9 +202,7 @@ function getStatusCodeColor(code: number | null): string {
                                         </td>
                                         <td
                                             class="max-w-xs truncate py-3 text-muted-foreground"
-                                            :title="
-                                                failure.error_message ?? ''
-                                            "
+                                            :title="failure.error_message ?? ''"
                                         >
                                             {{
                                                 failure.error_message ||
@@ -220,7 +218,8 @@ function getStatusCodeColor(code: number | null): string {
                                                 "
                                             >
                                                 {{
-                                                    failure.response_code || 'N/A'
+                                                    failure.response_code ||
+                                                    'N/A'
                                                 }}
                                             </span>
                                         </td>

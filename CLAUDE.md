@@ -1,3 +1,161 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+This is a Laravel 12 + Vue 3 + Inertia.js application using the modern Laravel streamlined structure. It's a starter kit with authentication (via Laravel Fortify), settings management, and dark mode support. The application uses Laravel Herd for local development and follows Laravel's latest conventions.
+
+## Development Commands
+
+### Development Workflow
+```bash
+# Full development environment with server, queue, logs, and vite
+composer run dev
+
+# Alternative: Individual commands
+php artisan serve
+npm run dev
+
+# SSR development
+composer run dev:ssr
+```
+
+### Testing
+```bash
+# Run all tests
+php artisan test
+
+# Run tests in a specific file
+php artisan test tests/Feature/ExampleTest.php
+
+# Filter tests by name
+php artisan test --filter=testName
+
+# Full test suite (after passing local tests)
+composer test
+```
+
+### Code Quality
+```bash
+# Format PHP code (always run before finalizing changes)
+vendor/bin/pint --dirty
+
+# Format JavaScript/Vue
+npm run format
+
+# Lint JavaScript/Vue
+npm run lint
+```
+
+### Build
+```bash
+# Production build
+npm run build
+
+# SSR build
+npm run build:ssr
+```
+
+### Initial Setup
+```bash
+composer run setup
+```
+
+## Architecture & Structure
+
+### Authentication Architecture
+- **Laravel Fortify** provides headless authentication backend
+- Authentication actions in `app/Actions/Fortify/` handle business logic (user creation, password reset, etc.)
+- Frontend authentication pages in `resources/js/pages/auth/`
+- Two-factor authentication with QR codes and recovery codes is supported
+- Custom middleware `HandleAppearance` manages dark mode preferences via cookies
+
+### Frontend Architecture
+- **Inertia.js v2** for server-driven SPAs
+- **Laravel Wayfinder** for type-safe route generation with tree-shaking support
+- Pages resolved from `resources/js/pages/` directory (note: lowercase `pages` in app.ts:15)
+- Two main layouts: `AuthLayout.vue` and `AppLayout.vue`
+- UI components in `resources/js/components/ui/` using Reka UI primitives
+- Custom composables in `resources/js/composables/`:
+  - `useAppearance.ts` - Dark mode management with localStorage + cookie sync
+  - `useTwoFactorAuth.ts` - 2FA flow management
+  - `useInitials.ts` - User initials generation
+
+### Styling Architecture
+- **Tailwind CSS v4** with `@import` syntax (not `@tailwind` directives)
+- Theme configuration in `resources/css/app.css` using `@theme inline`
+- Custom dark mode variant: `@custom-variant dark (&:is(.dark *))`
+- CSS variables for theming (`:root` and `.dark` classes)
+- Font: Instrument Sans (custom font family)
+- tw-animate-css for animations
+
+### Route Organization
+- Main routes in `routes/web.php`
+- Settings routes modularized in `routes/settings.php`
+- Health check endpoint at `/up`
+- Console routes in `routes/console.php`
+
+### Middleware Registration
+- Middleware registered in `bootstrap/app.php` (Laravel 12 structure)
+- Custom middleware: `HandleAppearance`, `HandleInertiaRequests`
+- No `app/Http/Middleware/` files in Laravel 12+ except custom ones
+
+### Settings Features
+The application includes a settings area with:
+- Profile management (`/settings/profile`)
+- Password changes (`/settings/password`)
+- Appearance/dark mode (`/settings/appearance`)
+- Two-factor authentication (`/settings/two-factor`)
+
+### Dark Mode Implementation
+Dark mode uses a three-way approach:
+1. User preference stored in `localStorage` (client-side)
+2. Cookie (`appearance`) for SSR support (set by middleware)
+3. System preference detection via `prefers-color-scheme` media query
+4. Theme initialized on page load via `initializeTheme()` in `app.ts`
+
+## Key Implementation Notes
+
+### Wayfinder Usage
+Import controller methods as tree-shakable named imports:
+```typescript
+import { show, store } from '@/actions/App/Http/Controllers/PostController'
+show(1) // { url: "/posts/1", method: "get" }
+```
+
+Use with Inertia Form component:
+```vue
+<Form v-bind="store.form()"><input name="title" /></Form>
+```
+
+### Inertia v2 Features Available
+- Polling
+- Prefetching
+- Deferred props (use with skeleton loaders)
+- Infinite scrolling with merging props and `WhenVisible`
+- Form component with validation states
+
+### Testing Strategy
+- Use Pest v4 for all tests
+- Feature tests in `tests/Feature/`
+- Unit tests in `tests/Unit/`
+- Browser tests supported (use `tests/Browser/` directory)
+- Always write/update tests for changes
+- Use factories for test data (check for custom states)
+
+### Database
+- SQLite by default
+- No models currently exist (fresh application)
+- Migrations auto-run on setup
+
+### Laravel Herd
+- Site available at `https://health-check.test` (or http variant)
+- No need to run `php artisan serve` commands for general access
+- Use `mcp__laravel-boost__get-absolute-url` tool to generate correct URLs
+
+===
+
 <laravel-boost-guidelines>
 === foundation rules ===
 

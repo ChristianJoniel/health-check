@@ -18,6 +18,12 @@ class Project extends Model
         'name',
         'health_check_url',
         'is_active',
+        'health_status',
+        'consecutive_failures',
+        'first_failed_at',
+        'last_failed_at',
+        'last_notification_sent_at',
+        'last_recovered_at',
     ];
 
     /**
@@ -27,6 +33,11 @@ class Project extends Model
     {
         return [
             'is_active' => 'boolean',
+            'consecutive_failures' => 'integer',
+            'first_failed_at' => 'datetime',
+            'last_failed_at' => 'datetime',
+            'last_notification_sent_at' => 'datetime',
+            'last_recovered_at' => 'datetime',
         ];
     }
 

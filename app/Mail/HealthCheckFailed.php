@@ -17,15 +17,20 @@ class HealthCheckFailed extends Mailable implements ShouldQueue
     /**
      * Create a new message instance.
      */
-    public function __construct(public HealthCheckFailure $failure) {}
+    public function __construct(
+        public HealthCheckFailure $failure,
+        public bool $isFirstFailure = true
+    ) {}
 
     /**
      * Get the message envelope.
      */
     public function envelope(): Envelope
     {
+        $prefix = $this->isFirstFailure ? '[ALERT]' : '[ONGOING]';
+
         return new Envelope(
-            subject: '[ALERT] Health Check Failed: '.$this->failure->project->name,
+            subject: "{$prefix} Health Check Failed: ".$this->failure->project->name,
         );
     }
 
@@ -43,6 +48,9 @@ class HealthCheckFailed extends Mailable implements ShouldQueue
                 'responseCode' => $this->failure->response_code,
                 'responseTime' => $this->failure->response_time_ms,
                 'checkedAt' => $this->failure->checked_at,
+                'isFirstFailure' => $this->isFirstFailure,
+                'consecutiveFailures' => $this->failure->project->consecutive_failures,
+                'failingSince' => $this->failure->project->first_failed_at,
             ],
         );
     }

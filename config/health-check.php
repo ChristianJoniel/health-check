@@ -88,4 +88,29 @@ return [
 
     'recovery_notifications_enabled' => env('HEALTH_CHECK_RECOVERY_NOTIFICATIONS', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Confirmation Retry
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, a failed health check will be retried after a delay before
+    | recording the failure and sending notifications. This helps reduce false
+    | positives from transient network issues.
+    |
+    */
+
+    'confirmation_retry_enabled' => env('HEALTH_CHECK_CONFIRMATION_RETRY', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Confirmation Retry Delay
+    |--------------------------------------------------------------------------
+    |
+    | The number of seconds to wait before retrying a failed health check.
+    | Only applies when confirmation_retry_enabled is true.
+    |
+    */
+
+    'confirmation_retry_delay' => env('HEALTH_CHECK_CONFIRMATION_DELAY', 30),
+
 ];

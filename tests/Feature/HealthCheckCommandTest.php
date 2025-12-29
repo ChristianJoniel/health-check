@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Mail;
 beforeEach(function () {
     Http::preventStrayRequests();
     Mail::fake();
+    config(['health-check.confirmation_retry_delay' => 0]);
 });
 
 test('successful ping does not record failure', function () {
@@ -43,7 +44,9 @@ test('failed ping records failure and sends email', function () {
     ]);
 
     Http::fake([
-        'https://example.com/up' => Http::response('Internal Server Error', 500),
+        'https://example.com/up' => Http::sequence()
+            ->push('Internal Server Error', 500)
+            ->push('Internal Server Error', 500),
     ]);
 
     (new CheckProjectHealth($project->load('notificationEmails')))->handle();
@@ -61,6 +64,8 @@ test('failed ping records failure and sends email', function () {
 });
 
 test('connection timeout records failure', function () {
+    config(['health-check.confirmation_retry_enabled' => false]);
+
     $project = Project::factory()->create([
         'health_check_url' => 'https://example.com/up',
         'is_active' => true,
@@ -123,7 +128,9 @@ test('no email sent when notifications are disabled', function () {
     ]);
 
     Http::fake([
-        'https://example.com/up' => Http::response('Error', 500),
+        'https://example.com/up' => Http::sequence()
+            ->push('Error', 500)
+            ->push('Error', 500),
     ]);
 
     (new CheckProjectHealth($project->load('notificationEmails')))->handle();
@@ -139,7 +146,9 @@ test('no email sent when project has no notification emails', function () {
     ]);
 
     Http::fake([
-        'https://example.com/up' => Http::response('Error', 500),
+        'https://example.com/up' => Http::sequence()
+            ->push('Error', 500)
+            ->push('Error', 500),
     ]);
 
     (new CheckProjectHealth($project))->handle();
@@ -268,10 +277,120 @@ test('no admin email sent when admin emails not configured', function () {
     ]);
 
     Http::fake([
-        'https://example.com/up' => Http::failedConnection(),
+        'https://example.com/up' => Http::sequence()
+            ->push(fn () => throw new \Illuminate\Http\Client\ConnectionException('Connection refused'))
+            ->push(fn () => throw new \Illuminate\Http\Client\ConnectionException('Connection refused')),
     ]);
 
     (new CheckProjectHealth($project))->handle();
 
     Mail::assertNotSent(HealthCheckBatchFailed::class);
+});
+
+test('retry succeeds after initial failure - no email sent', function () {
+    config(['health-check.confirmation_retry_enabled' => true]);
+    config(['health-check.confirmation_retry_delay' => 0]);
+
+    $project = Project::factory()->create([
+        'health_check_url' => 'https://example.com/up',
+        'is_active' => true,
+    ]);
+
+    ProjectNotificationEmail::factory()->create([
+        'project_id' => $project->id,
+        'email' => 'admin@example.com',
+    ]);
+
+    Http::fake([
+        'https://example.com/up' => Http::sequence()
+            ->push('Internal Server Error', 500)
+            ->push('OK', 200),
+    ]);
+
+    (new CheckProjectHealth($project->load('notificationEmails')))->handle();
+
+    expect(HealthCheckFailure::count())->toBe(0);
+    expect($project->fresh()->health_status)->toBe('healthy');
+    Mail::assertNothingSent();
+});
+
+test('retry also fails - email is sent', function () {
+    config(['health-check.confirmation_retry_enabled' => true]);
+    config(['health-check.confirmation_retry_delay' => 0]);
+
+    $project = Project::factory()->create([
+        'health_check_url' => 'https://example.com/up',
+        'is_active' => true,
+    ]);
+
+    ProjectNotificationEmail::factory()->create([
+        'project_id' => $project->id,
+        'email' => 'admin@example.com',
+    ]);
+
+    Http::fake([
+        'https://example.com/up' => Http::sequence()
+            ->push('Internal Server Error', 500)
+            ->push('Internal Server Error', 500),
+    ]);
+
+    (new CheckProjectHealth($project->load('notificationEmails')))->handle();
+
+    expect(HealthCheckFailure::count())->toBe(1);
+    expect($project->fresh()->health_status)->toBe('failing');
+
+    Mail::assertQueued(HealthCheckFailed::class);
+});
+
+test('retry is skipped when disabled in config', function () {
+    config(['health-check.confirmation_retry_enabled' => false]);
+
+    $project = Project::factory()->create([
+        'health_check_url' => 'https://example.com/up',
+        'is_active' => true,
+    ]);
+
+    ProjectNotificationEmail::factory()->create([
+        'project_id' => $project->id,
+        'email' => 'admin@example.com',
+    ]);
+
+    Http::fake([
+        'https://example.com/up' => Http::response('Internal Server Error', 500),
+    ]);
+
+    (new CheckProjectHealth($project->load('notificationEmails')))->handle();
+
+    expect(HealthCheckFailure::count())->toBe(1);
+    expect($project->fresh()->health_status)->toBe('failing');
+
+    Http::assertSentCount(1);
+    Mail::assertQueued(HealthCheckFailed::class);
+});
+
+test('connection failure recovers on retry - no email sent', function () {
+    config(['health-check.confirmation_retry_enabled' => true]);
+    config(['health-check.confirmation_retry_delay' => 0]);
+
+    $project = Project::factory()->create([
+        'health_check_url' => 'https://example.com/up',
+        'is_active' => true,
+    ]);
+
+    ProjectNotificationEmail::factory()->create([
+        'project_id' => $project->id,
+        'email' => 'admin@example.com',
+    ]);
+
+    Http::fake([
+        'https://example.com/up' => Http::sequence()
+            ->whenEmpty(Http::response('OK', 200))
+            ->push(fn () => throw new \Illuminate\Http\Client\ConnectionException('Connection refused')),
+    ]);
+
+    (new CheckProjectHealth($project->load('notificationEmails')))->handle();
+
+    expect(HealthCheckFailure::count())->toBe(0);
+    expect($project->fresh()->health_status)->toBe('healthy');
+    Mail::assertNothingSent();
 });

@@ -45,6 +45,50 @@ class CheckProjectHealth implements ShouldQueue
             return;
         }
 
+        $result = $this->performHealthCheck();
+
+        if ($result['success']) {
+            $this->handleSuccessfulCheck($result['response_time']);
+
+            return;
+        }
+
+        if (config('health-check.confirmation_retry_enabled', true)) {
+            $delay = config('health-check.confirmation_retry_delay', 30);
+
+            Log::info("Health check failed for {$this->project->name}, retrying in {$delay} seconds", [
+                'project_id' => $this->project->id,
+                'initial_error' => $result['error'],
+            ]);
+
+            sleep($delay);
+
+            $retryResult = $this->performHealthCheck();
+
+            if ($retryResult['success']) {
+                Log::info("Health check recovered after retry for {$this->project->name}", [
+                    'project_id' => $this->project->id,
+                    'response_time_ms' => $retryResult['response_time'],
+                ]);
+
+                $this->handleSuccessfulCheck($retryResult['response_time']);
+
+                return;
+            }
+
+            $result = $retryResult;
+        }
+
+        $this->recordFailure($result['error'], $result['response_code'], $result['response_time']);
+    }
+
+    /**
+     * Perform a single health check request.
+     *
+     * @return array{success: bool, error: string|null, response_code: int, response_time: int}
+     */
+    protected function performHealthCheck(): array
+    {
         $timeout = config('health-check.timeout', 10);
         $startTime = microtime(true);
 
@@ -59,50 +103,64 @@ class CheckProjectHealth implements ShouldQueue
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
 
             if ($response->successful()) {
-                $wasFailingBefore = $this->project->health_status === 'failing';
-
-                $this->project->update([
-                    'health_status' => 'healthy',
-                    'consecutive_failures' => 0,
-                    'first_failed_at' => null,
-                    'last_failed_at' => null,
-                    'last_recovered_at' => $wasFailingBefore ? now() : $this->project->last_recovered_at,
-                ]);
-
-                if ($wasFailingBefore) {
-                    $this->sendRecoveryNotification();
-                }
-
-                Log::info("Health check passed for {$this->project->name}", [
-                    'project_id' => $this->project->id,
-                    'response_time_ms' => $responseTime,
-                ]);
-
-                return;
+                return [
+                    'success' => true,
+                    'error' => null,
+                    'response_code' => $response->status(),
+                    'response_time' => $responseTime,
+                ];
             }
 
-            $this->recordFailure(
-                'HTTP '.$response->status().': '.$response->reason(),
-                $response->status(),
-                $responseTime
-            );
+            return [
+                'success' => false,
+                'error' => 'HTTP '.$response->status().': '.$response->reason(),
+                'response_code' => $response->status(),
+                'response_time' => $responseTime,
+            ];
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
 
-            $this->recordFailure(
-                'Connection failed: '.$e->getMessage(),
-                0,
-                $responseTime
-            );
+            return [
+                'success' => false,
+                'error' => 'Connection failed: '.$e->getMessage(),
+                'response_code' => 0,
+                'response_time' => $responseTime,
+            ];
         } catch (\Exception $e) {
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
 
-            $this->recordFailure(
-                'Error: '.$e->getMessage(),
-                0,
-                $responseTime
-            );
+            return [
+                'success' => false,
+                'error' => 'Error: '.$e->getMessage(),
+                'response_code' => 0,
+                'response_time' => $responseTime,
+            ];
         }
+    }
+
+    /**
+     * Handle a successful health check.
+     */
+    protected function handleSuccessfulCheck(int $responseTime): void
+    {
+        $wasFailingBefore = $this->project->health_status === 'failing';
+
+        $this->project->update([
+            'health_status' => 'healthy',
+            'consecutive_failures' => 0,
+            'first_failed_at' => null,
+            'last_failed_at' => null,
+            'last_recovered_at' => $wasFailingBefore ? now() : $this->project->last_recovered_at,
+        ]);
+
+        if ($wasFailingBefore) {
+            $this->sendRecoveryNotification();
+        }
+
+        Log::info("Health check passed for {$this->project->name}", [
+            'project_id' => $this->project->id,
+            'response_time_ms' => $responseTime,
+        ]);
     }
 
     protected function recordFailure(string $errorMessage, int $responseCode, int $responseTime): void

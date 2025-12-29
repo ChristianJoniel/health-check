@@ -8,6 +8,10 @@ use App\Models\ProjectNotificationEmail;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 
+beforeEach(function () {
+    config(['health-check.confirmation_retry_delay' => 0]);
+});
+
 test('first failure sends immediate notification', function () {
     Mail::fake();
 
@@ -21,7 +25,10 @@ test('first failure sends immediate notification', function () {
         'email' => 'admin@example.com',
     ]);
 
-    Http::fake(['*' => Http::response('Error', 500)]);
+    Http::fake(['*' => Http::sequence()
+        ->push('Error', 500)
+        ->push('Error', 500),
+    ]);
 
     (new CheckProjectHealth($project->load('notificationEmails')))->handle();
 
@@ -81,7 +88,10 @@ test('escalation interval prevents notification spam at 5 minute threshold', fun
         'email' => 'admin@example.com',
     ]);
 
-    Http::fake(['*' => Http::response('Error', 500)]);
+    Http::fake(['*' => Http::sequence()
+        ->push('Error', 500)
+        ->push('Error', 500),
+    ]);
 
     (new CheckProjectHealth($project->load('notificationEmails')))->handle();
 
@@ -106,7 +116,10 @@ test('state transition from unknown to failing is treated as first failure', fun
         'email' => 'admin@example.com',
     ]);
 
-    Http::fake(['*' => Http::response('Error', 500)]);
+    Http::fake(['*' => Http::sequence()
+        ->push('Error', 500)
+        ->push('Error', 500),
+    ]);
 
     (new CheckProjectHealth($project->load('notificationEmails')))->handle();
 
@@ -132,7 +145,10 @@ test('consecutive failures counter increments correctly', function () {
         'email' => 'admin@example.com',
     ]);
 
-    Http::fake(['*' => Http::response('Error', 500)]);
+    Http::fake(['*' => Http::sequence()
+        ->push('Error', 500)
+        ->push('Error', 500),
+    ]);
 
     (new CheckProjectHealth($project->load('notificationEmails')))->handle();
 
